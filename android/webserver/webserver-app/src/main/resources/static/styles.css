@@ -1,0 +1,19 @@
+.newNote td {
+  vertical-align: top;
+}      
+
+.events {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.event {
+    border-radius: 0.6em;
+    margin: 0.2em;
+    padding: 0.2em;
+    background-color: #eee;
+}
+
+.event > div {
+    display: flex;
+}

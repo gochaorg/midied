@@ -1,0 +1,19 @@
+plugins {
+    id 'java'
+}
+
+group = 'xyz.cofe'
+version = 'unspecified'
+
+dependencies {
+    implementation libs.coll.im
+    implementation libs.okhttp
+    implementation libs.gson
+
+    testImplementation platform('org.junit:junit-bom:5.10.0')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+}
+
+test {
+    useJUnitPlatform()
+}

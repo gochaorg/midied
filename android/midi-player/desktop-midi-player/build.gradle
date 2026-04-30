@@ -1,0 +1,34 @@
+plugins {
+    id 'java-library'
+}
+
+group = 'xyz.cofe'
+version = 'unspecified'
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+dependencies {
+    api  libs.slf4j.api
+    api libs.slf4j.simple
+
+    api  libs.coll.im
+    api  libs.okhttp
+    api  libs.gson
+
+    api project(":common")
+
+    testImplementation platform('org.junit:junit-bom:5.10.0')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+}
+
+test {
+    useJUnitPlatform()
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}

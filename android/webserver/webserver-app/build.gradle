@@ -1,0 +1,74 @@
+plugins {
+    id 'java'
+}
+
+group = 'xyz.cofe'
+version = 'unspecified'
+
+// Скрипты sh
+def shellScripts = [
+    'http-static.sh' : [
+        main: 'xyz.cofe.mitrenier.web.main.StaticMainWeb'
+    ]
+]
+
+dependencies {
+    testImplementation platform('org.junit:junit-bom:5.10.0')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    implementation( libs.coll.im )
+
+    implementation( project(':common'))
+    implementation( project(':webserver:webserver-base') )
+    implementation project(':midi-player:desktop-midi-player')
+
+    testImplementation(libs.slf4j.simple)
+}
+
+test {
+    useJUnitPlatform()
+}
+
+test {
+    useJUnitPlatform {
+        exclude "manual"
+    }
+}
+
+task copyDependencies(type: Copy) {
+    dependsOn jar
+    from configurations.runtimeClasspath
+    from jar.archiveFile
+    into 'dist/app/jar'
+}
+
+task createStartScript {
+    dependsOn copyDependencies
+    doLast {
+        shellScripts.each {scriptFileName, scriptConfig ->
+            def scriptFile = file("dist/app/bin/${scriptFileName}")
+            if( !scriptFile.parentFile.exists() ) {
+                scriptFile.parentFile.mkdirs()
+            }
+
+            def mainClassName = scriptConfig.main
+
+            scriptFile.text = """\
+            |#!/bin/bash
+            |APP_HOME=\$(cd "\$(dirname "\$0")" && pwd)
+            |java -cp "\$APP_HOME/../jar/*" ${mainClassName} "\$@"
+            |""".stripMargin()
+
+            scriptFile.setExecutable(true, false)
+        }
+
+        def configFile = file('dist/app/bin/configure.sh')
+        configFile.text = file('src/main/bash/configure.sh').text
+        configFile.setExecutable(true, false)
+    }
+}
+
+assemble.dependsOn createStartScript
+
+clean.doFirst {
+    delete 'dist'
+}

@@ -1,0 +1,28 @@
+[package]
+name = "native-app-ui"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+eframe.workspace = true
+egui.workspace = true
+egui_extras = { workspace = true, features = ["image", "svg"] }
+
+log.workspace = true
+env_logger.workspace = true
+tokio.workspace = true
+
+base_ui = { path="../base-ui" }
+
+[profile.release]
+opt-level = 3
+lto = true
+
+
+[[bin]]
+name = "midied"
+path = "src/main.rs"
+
+[[bin]]
+name = "midied_debug"
+path = "src/test.rs"

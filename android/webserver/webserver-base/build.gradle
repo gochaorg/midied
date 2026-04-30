@@ -1,0 +1,37 @@
+plugins {
+    id 'java-library'
+}
+
+group = 'xyz.cofe'
+version = 'unspecified'
+
+dependencies {
+    implementation(project(":common"))
+
+    testImplementation platform('org.junit:junit-bom:5.10.0')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+
+    api(libs.jetty.server)
+    api(libs.jetty.session)
+
+    api(libs.coll.im)
+    api(libs.json.stream.ann.v11snapshot)
+    api(libs.json.jre.types.v11snapshot)
+    api(libs.json.stream.core.v11snapshot)
+
+    // Source: https://mvnrepository.com/artifact/com.google.code.gson/gson
+    api(libs.gson.v2132)
+
+    api libs.slf4j.api
+    testImplementation(libs.slf4j.simple)
+}
+
+
+test {
+    useJUnitPlatform()
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}

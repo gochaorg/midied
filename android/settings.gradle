@@ -1,0 +1,32 @@
+pluginManagement {
+    repositories {
+        google {
+            content {
+                includeGroupByRegex("com\\.android.*")
+                includeGroupByRegex("com\\.google.*")
+                includeGroupByRegex("androidx.*")
+            }
+        }
+        mavenCentral()
+        gradlePluginPortal()
+        mavenLocal()
+    }
+}
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+        mavenLocal()
+    }
+}
+
+rootProject.name = "MiTrenier1c"
+
+include ':app'
+include ':common'
+include ':webserver:webserver-base'
+include ':webserver:webserver-app'
+include ':midi-player'
+include ':midi-player:android-midi-player'
+include ':midi-player:desktop-midi-player'

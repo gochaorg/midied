@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>
+        midi
+    </title>
+    <script src="vue-3.global.js"></script>
+    <script src="clients-api.js"></script>
+    <script src="notes.js"></script>
+    <script src="emu-api.js"></script>
+
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div id="app">
+  <button @click="refresh">refresh</button>  
+  <div class="midiClients">
+    clients
+    <table>
+      <thead>
+        <td>id</td>
+        <td>events</td>
+        <td>rawEvents</td>
+        <td>eventsQueuesCount</td>
+        <td>rawEventsQueuesCount</td>
+        <td>timestampShift</td>
+        <td>timeShiftMillis</td>
+      </thead>
+      <tr v-for="(cl, clId, clIdx) in clients">
+        <td>{{clId}}</td>
+        <td>{{cl.events}}</td>
+        <td>{{cl.rawEvents}}</td>
+        <td>{{cl.eventsQueuesCount}}</td>
+        <td>{{cl.rawEventsQueuesCount}}</td>
+        <td>{{cl.timestampShift}}</td>
+        <td>{{cl.timeShiftMillis}}</td>
+      </tr>
+    </table>
+  </div>
+  <div>
+    server time: {{serverTime.millis}} {{serverTime.nano}} {{serverTime.time}}
+  </div>
+  <!-- <my-component :message="parentMessage" @child-event="handleChildEvent"></my-component> -->
+  <div>
+    song {{song.state}}:
+    <button @click="play">play</button>
+    <button @click="stop">stop</button>
+    <table>
+      <thead>
+        <td>#</td>
+        <td>timestamp ms</td>
+        <td>type</td>
+        <td>note</td>
+        <td>velocity</td>
+        <td>duration ms</td>
+        <td>-</td>
+      </thead>
+      <tr v-for="nId in songNotesSorted">
+        <td>{{nId}}</td>
+        <td>{{song.notes[nId].timestamp}}</td>
+        <td>{{song.notes[nId].type}}</td>
+        <td>{{song.notes[nId].note}} / {{midiToNoteName(song.notes[nId].note)}}</td>
+        <td>{{song.notes[nId].velocity}}</td>
+        <td>{{song.notes[nId].duration}}</td>
+        <td><button @click="removeNote(nId)">-</button></td>
+      </tr>
+      <tr class="newNote">
+        <td>-</td>
+        <td>
+          <input type="number" min="0" max="1000000" v-model="newNote.timestamp"> <br/>
+          <button 
+            v-for="next in uniqNoteTimestampShift"
+            @click="assignNewNoteTimestampEndShift(next)"
+            >
+            +{{next}}
+          </button>
+        </td>
+        <td>-</td>
+        <td>
+          <input type="text" v-model="newNote.noteName"> <br/>
+          <button 
+            v-for="note in uniqNoteNames" 
+            @click="assignNewNoteName(note)">
+            {{midiToNoteName(note)}}
+          </button>
+        </td>
+        <td><input type="number" min="0" max="127" v-model="newNote.velocity"></td>
+        <td><input type="number" min="0" max="1000000" v-model="newNote.duration"></td>
+        <td>
+          <button @click="addNote" :disabled="!isValidNewNoteName">+</button>
+        </td>
+      </tr>
+    </table>
+  </div>
+
+  <div>
+    <button @click="createListener">create listener</button>
+    <input type="checkbox" v-model="newListenerNow"> now
+
+    <div v-for="(ls,lsId,lsIdx) in myListeners">
+      <midi-listener :listener-id="lsId" @close="closeListener"></midi-listener>
+    </div>
+  </div>
+</div>
+
+<!-- Определяем шаблон компонента вне JavaScript -->
+<script type="text/x-template" id="midi-listener">
+  <div class="midi-listener">
+    <h2>Listener {{listener.id}} <button @click="close">close</button></h2>
+    <button v-if="listenNow" @click="stopListen">stop listen</button>
+    <button v-else @click="continueListen">start listen</button>
+    <div class="events">
+      <div v-for="(ev,evIdx) in events" class="event">
+        <div v-for="(v,n,vIdx) in ev">
+          <span class="event_prop_name">{{n}} = </span>
+          <span v-if="n == 'timestamp'">
+            {{v / 1000000}} ms
+            <br/> {{v}} ns
+          </span>
+          <span v-else>{{v}}</span>          
+        </div>
+      </div>
+    </div>
+  </div>
+</script>
+
+<script>
+  const clientApi = new MidiClientApi()
+  const emuApi = new EmuApi()
+
+  const MidiListenerDefinition = {
+    template: '#midi-listener', // <-- Используем селектор
+    props: ['listenerId'],
+    data() {      
+      const ls = clientApi.listener(this.listenerId)
+      return {
+        listenNow: true,
+        listener: ls,
+        events: []
+      }
+    },
+    methods: {
+      listenNowClicked() {
+        if( this.listenNow ){          
+          this.startListen()
+        }
+      },
+      async startListen() {  
+        const events = await this.listener.getEvents()
+        for( const ev of events ){
+          this.events.push(ev)
+        }
+        if( this.listenNow ){
+          this.startListen()
+        }
+      },
+      stopListen() {
+        if( this.listenNow ){
+          this.listenNow = false
+        }
+      },
+      continueListen() {
+        if( !this.listenNow ){
+          this.listenNow = true
+          this.startListen()
+        }
+      },
+      async close() {
+        await this.listener.close()
+        this.$emit('close', {
+          id: this.listener.id
+        });
+      }
+    },
+    created() {
+      if( this.listenNow ){
+        this.startListen()
+      }
+    }
+  };
+
+  function generateUniqueKey(obj) {
+    // 1. Получаем все ключи объекта
+    const keys = Object.keys(obj);
+
+    // 2. Превращаем их в числа и оставляем только валидные числа
+    // (фильтруем на случай, если в объекте есть строковые ключи вроде "name")
+    const numericKeys = keys
+      .map(key => Number(key))
+      .filter(key => !isNaN(key));
+
+    // 3. Сортируем числа по возрастанию
+    numericKeys.sort((a, b) => a - b);
+
+    // 4. Ищем первое свободное число, начиная с 1
+    let nextKey = 1;
+    
+    for (const key of numericKeys) {
+      if (key === nextKey) {
+        // Если ключ совпадает с ожидаемым, идем дальше (ищем следующий)
+        nextKey++;
+      } else {
+        // Если ключ больше ожидаемого (например, ожидаем 2, а там 3),
+        // значит, ожидаемое число (2) свободно. Прерываем цикл.
+        break;
+      }
+    }
+
+    return nextKey;
+  }
+
+  const tail = (arr) => arr.slice(1);
+
+  const zip = (arr1, arr2) => 
+    arr1.slice(0, Math.min(arr1.length, arr2.length))
+        .map((item, index) => [item, arr2[index]]);
+
+  const head = (arr) => arr[0];
+
+  const app = Vue.createApp({
+    data() {
+      return {
+        clients: {
+        },        
+
+        serverTime: {
+          millis: 0,
+          nano: 0,
+          time: '2026-03-16T12:00:08.583253484Z',
+        },
+
+        song: {
+          state: 'stop',
+          timers: [],
+          notes: {
+            n0: { type: 'note'
+            , note: 60
+            , velocity: 100
+            , timestamp: 0
+            , duration: 250
+            },
+            n1: { type: 'note'
+            , note: 62
+            , velocity: 100
+            , timestamp: 250
+            , duration: 250
+            },
+          }
+        },
+
+        newNote: {
+          timestamp: 0,
+          noteName: 'G4',
+          velocity: 70,
+          duration: 250,
+        },
+
+        newListenerNow: true,
+        myListeners: {}
+      };
+    },
+
+    methods: {
+      async refreshClients() {
+          this.clients = await clientApi.getListeners()
+      },
+
+      async refreshServerTime() {
+        this.serverTime = await clientApi.updateServerTime()
+      },
+
+      async refresh() {
+          this.refreshClients()
+          this.refreshServerTime()
+      },
+
+      async createListener() {
+        const opts = {}
+        if( this.newListenerNow ){
+          opts.timestampShift = 'now'
+        }
+        const ls = await clientApi.newListener(opts)
+        this.myListeners[ls.id] = ls
+        this.refreshClients()
+      },
+
+      closeListener(ls) {
+        delete this.myListeners[ls.id]
+        this.refreshClients()
+      },
+
+      midiToNoteName(midiNote) {
+        if( typeof(midiNote)!="number" )return "?";
+        midiNote = Math.trunc(midiNote)
+
+        const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+        const octave = Math.floor(midiNote / 12) - 1;
+        const noteIndex = midiNote % 12;
+        
+        return `${noteNames[noteIndex]}${octave}`;
+      },
+
+      noteNameToMidi(noteName){
+        const noteMap = {
+          'C': 0,  'C#': 1, 'Db': 1,
+          'D': 2,  'D#': 3, 'Eb': 3,
+          'E': 4,
+          'F': 5,  'F#': 6, 'Gb': 6,
+          'G': 7,  'G#': 8, 'Ab': 8,
+          'A': 9,  'A#': 10, 'Bb': 10,
+          'B': 11
+        };
+
+        const match = noteName.match(/^([A-G])(#|b)?(-?\d+)$/i);
+        if (!match) {
+          throw new Error(`Неверный формат ноты: ${noteName}`);
+        }
+
+        const [, note, accidental, octave] = match;
+        const key = note.toUpperCase() + (accidental || '');
+        
+        if (!(key in noteMap)) {
+          throw new Error(`Неизвестная нота: ${noteName}`);
+        }
+
+        const noteIndex = noteMap[key];
+        const octaveNum = parseInt(octave, 10);
+        const midiNote = (octaveNum + 1) * 12 + noteIndex;
+
+        if (midiNote < 0 || midiNote > 127) {
+          throw new Error(`MIDI нота ${midiNote} вне диапазона 0–127`);
+        }
+
+        return midiNote;
+      },
+
+      async play() {        
+        await this.refreshServerTime()
+        if( this.serverTime && this.serverTime.nano ){
+          emuApi.baseNano = this.serverTime.nano
+        }
+        if( this.serverTime && this.serverTime.time ){
+          emuApi.baseDate = new Date(this.serverTime.time)
+        }
+
+        let maxTimeout = 0
+        for( const nId in this.song.notes ){
+          const note = this.song.notes[nId]
+          if( note.type == 'note' 
+          && typeof(note.note)=="number" 
+          && typeof(note.velocity)=="number" 
+          && typeof(note.timestamp)=="number"
+          && typeof(note.duration)=="number"
+          ){
+            setTimeout(()=>{
+              //...
+              note.state = 'play'
+
+              emuApi.noteOn(
+                note.note,
+                note.velocity,
+                note.timestamp,
+              )
+
+            }, note.timestamp)
+
+            const tt = note.timestamp + note.duration
+            setTimeout(()=>{
+              //...
+              note.state = 'stop'
+
+              emuApi.noteOff(
+                note.note,
+                note.velocity,
+                note.timestamp + note.duration,
+              )
+
+              delete this.song.notes[nId]
+            }, tt)
+
+            maxTimeout = tt > maxTimeout ? tt : maxTimeout
+          }
+        }
+
+        if( maxTimeout>0 ){
+          this.song.state = 'play'
+          setTimeout(()=>{
+            this.stop()
+          }, maxTimeout+10)
+        }
+      },
+
+      stop() {
+        this.song.state = 'stop'
+        for( const tId of this.song.timers ){
+          clearTimeout(tId)
+        }
+        this.song.timers = []
+      },
+
+      addNote() {
+        const note = this.newNoteNameComputed;
+        if( typeof(note)!="number" )return
+
+        const t = Number(this.newNote.timestamp)
+        if( isNaN(t) || !Number.isInteger(t) || t<0 )return
+
+        const v = Number(this.newNote.velocity)
+        if( isNaN(v) || !Number.isInteger(v) || v<0 || v>127 )return
+
+        const d = Number(this.newNote.duration)
+        if( isNaN(d) || !Number.isInteger(d) || d<1  )return
+
+        const key = generateUniqueKey(this.song.notes)
+
+        this.song.notes[key] = {
+          type: 'note',
+          timestamp: t,
+          note: note,
+          velocity: v,
+          duration: d,
+        }
+      },
+
+      removeNote(nId) {
+        delete this.song.notes[nId]
+      },
+
+      assignNewNoteName(note) {
+        this.newNote.noteName = this.midiToNoteName(note)
+      },
+
+      assignNewNoteTimestampEndShift(tsShift) {
+        if( this.song.notes.length==0 ){
+          this.newNote.timestamp = tsShift
+        } else {
+          let lastTs = Object.entries(this.song.notes)
+            .flatMap( ([k,n]) => n.timestamp )
+            .sort((a,b)=>b-a)[0]
+          this.newNote.timestamp = lastTs + tsShift
+        }
+      },
+    },
+
+    computed: {
+      isValidNewNoteName() {
+        const val = (this.newNote.noteName || '').trim();
+        if (!val) return false;
+
+        const num = Number(val);
+        if( !isNaN(num) && Number.isInteger(num) && num >= 0 && num <= 127 ){
+          return true
+        }
+
+        try {
+          this.noteNameToMidi(val)
+          return true
+        } catch(e) {
+          return false
+        }
+      },
+
+      newNoteNameComputed() {
+        const val = (this.newNote.noteName || '').trim();
+        if (!val) return false;
+
+        const num = Number(val);
+        if( !isNaN(num) && Number.isInteger(num) && num >= 0 && num <= 127 ){
+          return num
+        }
+
+        try {
+          return this.noteNameToMidi(val)
+        } catch(e) {
+          return false
+        }
+      },
+    
+      songNotesSorted() {
+        return Object.keys(this.song.notes).sort((keyA, keyB) => {
+          const t = this.song.notes[keyA].timestamp - this.song.notes[keyB].timestamp;
+          if( t!=0 )return t;
+          return this.song.notes[keyA].note - this.song.notes[keyB].note;
+        })
+      },
+
+      uniqNoteNames() {
+        return [... 
+          new Set(
+            Object.entries( this.song.notes ).flatMap( ([k,o]) => o.note )
+          )
+        ]
+      },
+
+      uniqNoteTimestampShift() {
+        let timestamps = [ ...
+          new Set(Object.entries(this.song.notes).flatMap(([k,n]) => n.timestamp))
+        ];
+        timestamps = timestamps.sort((a,b)=>a-b)
+        if( timestamps.length<2 )return []
+
+        const ts2 = tail(timestamps)
+        const tsZip = zip(timestamps,ts2)
+        const tsDurs = tsZip.map( ([t0,t1]) => t1-t0 )
+        const durs = [...new Set(tsDurs)]
+        return durs
+      },
+    }
+  });
+  
+  app.component('MidiListener', MidiListenerDefinition);
+  app.mount('#app');
+</script>
+
+</body>
+</html>

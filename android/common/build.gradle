@@ -1,0 +1,31 @@
+plugins {
+    id 'java-library'
+}
+
+group = 'xyz.cofe'
+version = 'unspecified'
+
+dependencies {
+    api libs.slf4j.api
+    testImplementation(libs.slf4j.simple)
+
+    api libs.coll.im
+    api libs.okhttp
+    api libs.gson
+
+    testImplementation platform('org.junit:junit-bom:5.10.0')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+
+    testImplementation 'org.mockito:mockito-core:5.12.0'
+    testRuntimeOnly 'net.bytebuddy:byte-buddy:1.14.17' // улучшает работу Mockito
+}
+
+test {
+    useJUnitPlatform()
+}
+
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}

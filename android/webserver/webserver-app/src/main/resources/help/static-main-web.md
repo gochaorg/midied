@@ -1,0 +1,36 @@
+- Настройка http
+  - jetty connector
+    - `connector` `idleTimeout` _duration_
+    - `connector` `idle` _duration_
+    - `connector` `queue` _intNumber_
+  - threads
+    - `threads` `idleTimeout` _duration_
+    - `threads` `idle` _duration_
+    - `threads` `min` _count:intNumber_
+    - `threads` `max` _count:intNumber_
+    - `threads` `minmax` _min:intNumber_ _max:intNumber_
+  - `port` _intNumber_
+  - `bind` _url_ _dir_
+  - `basedir` _dir_
+  - `host` _ip_or_dns_name_
+- Bind
+  - `basedir` _dir_
+  - `bind` _dir_ _url_
+- Midi
+  - `midi` `list`
+  - `midi` `use` `any`
+  - `midi` `use` `idx` _num_
+  - `midi` `use` `name` `=` _name_
+  - `midi` `use` `name` `~` _name_wildcard_
+  - `midi` `api` `client` `off`
+  - `midi` `api` `client` _baseUrl_
+  - `midi` `api` `emu` `off`
+  - `midi` `api` `emu` _baseUrl_
+- Index
+  - `index` `off`
+  - `index` `file` _fileName_
+  - `index` `set` _key_ `=` _value_
+
+- _duration_ ::=  _intNumber_ ( `ns` | `ms` | `s` | `m` | `h` | `d` )
+- _intNumber_ ::= _digit_ { _digit_ }
+- _digit_ ::= `0` | `1` | `2` | `3` | `4` | `5` | `6` | `7` | `8` | `9`

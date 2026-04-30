@@ -1,0 +1,41 @@
+plugins {
+    id 'com.android.library'
+}
+
+android {
+    namespace 'xyz.cofe.mitrenier.player.andr'
+    compileSdk 35
+
+    defaultConfig {
+        minSdk 26
+        targetSdk 35
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    testOptions {
+        unitTests.includeAndroidResources = true // если нужны ресурсы Android
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_21
+        targetCompatibility JavaVersion.VERSION_21
+    }
+}
+
+dependencies {
+    implementation(project(":common"))
+
+    api libs.slf4j.api
+    testImplementation(libs.slf4j.simple)
+
+    // Unit-тесты
+    testImplementation libs.junit
+    testImplementation libs.mockito.core
+    testImplementation libs.kotlinx.coroutines.test // если используешь корутины
+    testImplementation 'androidx.test:core:1.5.0'
+
+    // Android-инструментальные тесты (опционально)
+    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
+}
