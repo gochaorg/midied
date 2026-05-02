@@ -1,12 +1,13 @@
-use base_ui::fs::{self, FsClient, files_dialog::*, unix_path::UnixPath};
+use base_ui::fs_ui::files_dialog::*;
 use eframe::egui;
+use fs::*;
 
-struct MyApp<FS> {
-  open_dlg: OpenDialog<FS>,
-  save_dlg: SaveDialog<FS>,
+struct MyApp {
+  open_dlg: OpenDialog,
+  save_dlg: SaveDialog,
 }
 
-impl<FS: FsClient + Clone + Send + 'static> eframe::App for MyApp<FS> {
+impl eframe::App for MyApp {
   fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
     egui::CentralPanel::default().show_inside(ui, |ui| {
       //self.folder.show(ui);
@@ -35,14 +36,14 @@ pub fn main() {
   local.block_on(&rt, async {
     // Настройки нативного окна
 
-    use base_ui::fs::files_dialog::OpenDialog;
+    use base_ui::fs_ui::files_dialog::OpenDialog;
 
     let options = eframe::NativeOptions {
       viewport: egui::ViewportBuilder::default().with_inner_size([400.0, 300.0]), // Размер окна
       ..Default::default()
     };
 
-    let mut fs = fs::fs_ram::FsRamStore::default();
+    let mut fs = FsRamStore::default();
 
     fs.mkdir_p(UnixPath::new("/dir/subdir")).unwrap();
     for i in 0..10 {
@@ -56,7 +57,7 @@ pub fn main() {
 
     let fs = fs.boxed();
     let open_dialog = OpenDialog::new(fs.clone());
-    let save_dialog = SaveDialog::new(fs.boxed());
+    let save_dialog = SaveDialog::new(fs.clone());
 
     let _ = eframe::run_native(
       "My App",

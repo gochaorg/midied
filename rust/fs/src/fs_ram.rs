@@ -1,10 +1,8 @@
-use std::sync::Arc;
-
-use futures::lock::Mutex;
-
-use crate::fs::unix_path::UnixPath;
-
 use super::*;
+use crate::UnixPath;
+use async_trait::async_trait;
+use futures::lock::Mutex;
+use std::sync::Arc;
 
 #[derive(Default)]
 pub struct FsRamStore {
@@ -46,7 +44,7 @@ pub enum FsStoreErr {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct DirEntry {
+pub struct RamDirEntry {
   pub name: String,
   pub is_dir: bool,
   pub size: Option<u64>,
@@ -419,7 +417,7 @@ impl FsRamStore {
   // ==================== ls / list ====================
 
   /// Список содержимого директории (аналог ls)
-  pub fn ls(&self, path: UnixPath) -> Result<Vec<DirEntry>, FsStoreErr> {
+  pub fn ls(&self, path: UnixPath) -> Result<Vec<RamDirEntry>, FsStoreErr> {
     if !path.is_absolute() {
       return Err(FsStoreErr::PathNotAbsolute);
     }
@@ -429,7 +427,7 @@ impl FsRamStore {
         self
           .root
           .iter()
-          .map(|e| DirEntry {
+          .map(|e| RamDirEntry {
             name: e.name().to_string(),
             is_dir: matches!(e, FsEntry::Dir { .. }),
             size: match e {
@@ -468,7 +466,7 @@ impl FsRamStore {
     Ok(
       current_level
         .iter()
-        .map(|e| DirEntry {
+        .map(|e| RamDirEntry {
           name: e.name().to_string(),
           is_dir: matches!(e, FsEntry::Dir { .. }),
           size: match e {
@@ -478,10 +476,6 @@ impl FsRamStore {
         })
         .collect(),
     )
-  }
-
-  pub fn boxed(self) -> Fs {
-    Arc::new(futures::lock::Mutex::new(self)).boxed()
   }
 
   /// Переименовывает или перемещает файл/директорию
@@ -1340,13 +1334,6 @@ mod tests {
   }
 
   #[test]
-  fn test_boxed() {
-    let store = Arc::new(Mutex::new(setup_store()));
-    let store = store.boxed();
-    //store.lock().await.
-  }
-
-  #[test]
   fn test_rename_file_same_dir() {
     let mut store = setup_store();
     let from = UnixPath::new("/home/user/readme.txt");
@@ -1569,9 +1556,9 @@ mod tests {
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl FsClient for Arc<Mutex<FsRamStore>> {
-  async fn list<PATH: AsRef<str>>(&self, dir: PATH) -> Result<Vec<super::DirEntry>, String> {
+  async fn list(&self, dir: &str) -> Result<Vec<DirEntry>, String> {
     let slf = self.lock().await;
-    let res = slf.ls(UnixPath::new(dir.as_ref())).map(|v| {
+    let res = slf.ls(UnixPath::new(dir)).map(|v| {
       let vv: Vec<super::DirEntry> = v
         .iter()
         .map(|e| {
@@ -1593,46 +1580,43 @@ impl FsClient for Arc<Mutex<FsRamStore>> {
     res
   }
 
-  async fn delete<PATH: AsRef<str>>(&self, path: PATH) -> Result<(), String> {
+  async fn write(&self, path: &str, bytes: &[u8]) -> Result<(), String> {
     let mut slf = self.lock().await;
     slf
-      .rm(UnixPath::new(path.as_ref()))
+      .write(UnixPath::new(path), bytes)
       .map_err(|e| format!("{e:?}"))
   }
 
-  async fn write<PATH: AsRef<str>, BYTES: AsRef<[u8]>>(
-    &self,
-    path: PATH,
-    bytes: BYTES,
-  ) -> Result<(), String> {
-    let mut slf = self.lock().await;
-    slf
-      .write(UnixPath::new(path.as_ref()), bytes)
-      .map_err(|e| format!("{e:?}"))
-  }
-
-  async fn read<PATH: AsRef<str>>(&self, path: PATH) -> Result<Vec<u8>, String> {
+  async fn read(&self, path: &str) -> Result<Vec<u8>, String> {
     let slf = self.lock().await;
-    slf
-      .read(UnixPath::new(path.as_ref()))
-      .map_err(|e| format!("{e:?}"))
+    slf.read(UnixPath::new(path)).map_err(|e| format!("{e:?}"))
   }
 
-  async fn mkdir<PATH: AsRef<str>>(&self, path: PATH) -> Result<(), String> {
+  async fn mkdir(&self, path: &str) -> Result<(), String> {
     self
       .lock()
       .await
-      .mkdir_p(UnixPath::new(path.as_ref()))
+      .mkdir_p(UnixPath::new(path))
       .map_err(|e| format!("{e:?}"))
   }
 
-  async fn abilities(&self) -> Result<FsAbilities, String> {
-    Ok(
-      FsAbilities::empty()
-        .with_read(true)
-        .with_delete(true)
-        .with_mkdir(true)
-        .with_upload(true),
-    )
+  async fn delete(&self, path: &str) -> Result<(), String> {
+    let mut slf = self.lock().await;
+    slf.rm(UnixPath::new(path)).map_err(|e| format!("{e:?}"))
+  }
+
+  async fn rename(&self, source_path: &str, target_path: &str) -> Result<(), String> {
+    self
+      .lock()
+      .await
+      .rename(UnixPath::new(source_path), UnixPath::new(target_path))
+      .map_err(|e| format!("{e:?}"))
+  }
+}
+
+impl FsRamStore {
+  pub fn boxed(self) -> Fs {
+    // TODO boolshit code
+    Arc::new(Mutex::new(Arc::new(Mutex::new(self))))
   }
 }

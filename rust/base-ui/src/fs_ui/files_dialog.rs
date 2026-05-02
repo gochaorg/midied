@@ -1,11 +1,8 @@
-use std::collections::HashSet;
-
-use crate::fs::{DirEntry, FsClient, unix_path::UnixPath};
-use crate::fs::{Fs, unix_path};
 use crate::spawn;
 use egui::Ui;
 use egui::{CentralPanel, Image, Panel, ScrollArea, TextEdit, Vec2, include_image};
 use egui_extras::{Column, TableBuilder};
+use fs::*;
 use futures::SinkExt;
 use futures_channel::mpsc::{self, UnboundedReceiver, UnboundedSender};
 
@@ -389,6 +386,7 @@ struct FileDialogRender<'a> {
   pub mkdir_name: &'a mut String,
   pub mkdir_available: bool,
   pub mkdir_visible: &'a mut bool,
+  #[allow(unused)]
   pub delete_avaiable: bool,
 }
 

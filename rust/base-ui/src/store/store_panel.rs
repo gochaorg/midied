@@ -1,18 +1,15 @@
-use std::sync::{Arc, Mutex};
-
 use super::super::GridObjects;
-use super::super::fs::FsClient;
 use super::super::plugin::Panel;
 use super::super::*;
 use crate::{
   coll::IdList,
-  fs::{Fs, files_dialog::OpenDialog, unix_path::UnixPath},
   music_grid::{GridObj, pitch_lines::PitchLines, time_lines::TimeLines},
   store::file_content::{MidiedJson, restore, store},
 };
-use derive_more::Display;
 use egui::{Id, Modal, Ui};
-use futures::{SinkExt, TryFutureExt};
+use fs::*;
+use fs_ui::files_dialog::*;
+use futures::SinkExt;
 use futures_channel::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use log;
 
@@ -21,8 +18,6 @@ pub struct StorePanel {
   filename: String,
   grid_objects: GridObjects,
   egui_context: Option<egui::Context>,
-  save_progress: Arc<Mutex<RWProgress>>,
-  load_progress: Arc<Mutex<RWProgress>>,
   open_dialog: Option<OpenDialog>,
   async_sender: UnboundedSender<AsyncMessage>,
   async_reciver: UnboundedReceiver<AsyncMessage>,
@@ -37,53 +32,6 @@ enum AsyncMessage {
   SavingSuccess,
 }
 
-#[derive(Display, Clone, PartialEq, Debug)]
-enum RWProgress {
-  #[display("not started")]
-  NotStarted,
-
-  #[display("progress")]
-  Progress,
-
-  #[display("success")]
-  Success,
-
-  #[display("fail: {_0}")]
-  Fail(String),
-}
-
-trait StateChange {
-  fn set_state(self, state: RWProgress);
-}
-
-impl StateChange for &Arc<Mutex<RWProgress>> {
-  fn set_state(self, new_state: RWProgress) {
-    if let Ok(mut state) = self.try_lock() {
-      *state = new_state;
-    }
-  }
-}
-
-impl StateChange for (&Arc<Mutex<RWProgress>>, &Option<egui::Context>) {
-  fn set_state(self, new_state: RWProgress) {
-    let (state, ctx) = self;
-    {
-      match state.lock() {
-        Ok(mut state) => {
-          *state = new_state.clone();
-        }
-        Err(e) => {
-          log::error!("can't lock state {e}");
-        }
-      }
-    }
-
-    if let Some(ctx) = ctx {
-      ctx.request_repaint();
-    }
-  }
-}
-
 impl StorePanel {
   pub fn new(fs: Fs, grid_obj: GridObjects) -> Self {
     let (tx, rx) = mpsc::unbounded::<AsyncMessage>();
@@ -92,8 +40,6 @@ impl StorePanel {
       filename: "/unnamed".to_string(),
       grid_objects: grid_obj,
       egui_context: None,
-      save_progress: Arc::new(Mutex::new(RWProgress::NotStarted)),
-      load_progress: Arc::new(Mutex::new(RWProgress::NotStarted)),
       open_dialog: None,
       async_reciver: rx,
       async_sender: tx,
@@ -120,15 +66,6 @@ impl Panel for StorePanel {
 
     if ui.button("save").clicked() {
       self.save_file(UnixPath::new(&self.filename));
-    }
-
-    {
-      if let Ok(state) = self.save_progress.lock() {
-        if *state != RWProgress::NotStarted {
-          let st = state.to_string();
-          ui.label(st);
-        }
-      }
     }
 
     ui.horizontal(|ui| {
@@ -169,14 +106,6 @@ impl Panel for StorePanel {
         }
       }
     });
-
-    {
-      if let Ok(state) = self.load_progress.lock() {
-        if *state != RWProgress::NotStarted {
-          ui.label(state.to_string());
-        }
-      }
-    }
   }
 }
 
@@ -220,7 +149,7 @@ impl StorePanel {
     let mut sender = self.async_sender.clone();
 
     let load_impl = async move || -> Result<AsyncMessage, String> {
-      let bytes = fs.read(file_name.clone()).await?;
+      let bytes = fs.read(&file_name.to_string()).await?;
       let content = String::from_utf8_lossy(&bytes);
       let content = restore(&content)?;
 
@@ -267,7 +196,7 @@ impl StorePanel {
 
     let save_impl = async move || -> Result<AsyncMessage, String> {
       let content = store(obj)?;
-      fs.write(file_name.to_string(), content.into_bytes())
+      fs.write(&file_name.to_string(), &content.into_bytes())
         .await?;
 
       Ok(AsyncMessage::SavingSuccess)

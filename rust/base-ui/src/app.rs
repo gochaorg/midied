@@ -1,7 +1,6 @@
 use crate::{
   app_params::*,
   coll::{IdList, IdListImpl},
-  fs::{self, Fs, FsClient},
   midi_receiver::{collector::IdListWriterOfMidi, listener::MidiLisener},
   music_grid::{GridObj, MusicGrid, move_tool, tool, view_port::ViewPortControls},
   plugin::{self, Panel},
@@ -10,6 +9,7 @@ use crate::{
   store::{self},
 };
 use egui::{Ui, Visuals};
+use fs::*;
 use futures::lock::Mutex as FLMutex;
 use log::info as log_info;
 use midi_model::midi_input::{MidiInput, PositiveMillisec, TimestampShift};
@@ -101,16 +101,14 @@ impl MyApp<GridObjects> {
   }
 }
 
-fn try_init_fs_http(
-  params: &HashMap<String, String>,
-) -> Option<impl FsClient + Clone + Send + 'static> {
+fn try_init_fs_http(params: &HashMap<String, String>) -> Option<Fs> {
   let fs_type = params.get(PARAM_FS_HOME_TYPE)?;
   if fs_type != PARAM_FS_HOME_TYPE_HTTP {
     return None;
   }
 
   let mount_path = params.get(PARAM_FS_HOME_MOUNT_STRING)?;
-  let c = fs::fs_http::FsHttpClient::new(mount_path).build().ok()?;
+  let c = FsHttpClient::new(mount_path).build().ok()?;
   let c = Arc::new(futures::lock::Mutex::new(c));
 
   log::info!("use http fs");
@@ -118,9 +116,7 @@ fn try_init_fs_http(
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn try_init_fs_native(
-  params: &HashMap<String, String>,
-) -> Option<impl FsClient + Clone + Send + 'static> {
+fn try_init_fs_native(params: &HashMap<String, String>) -> Option<Fs> {
   let fs_type = params.get(PARAM_FS_HOME_TYPE)?;
   if fs_type != PARAM_FS_HOME_TYPE_NATIVE {
     return None;
@@ -129,32 +125,29 @@ fn try_init_fs_native(
   let mount_path = params.get(PARAM_FS_HOME_MOUNT_STRING)?;
 
   log::info!("use native fs");
-  Some(Arc::new(futures::lock::Mutex::new(
-    fs::fs_native::FsNativeStore::new(mount_path),
-  )))
+  Some(Arc::new(futures::lock::Mutex::new(FsNativeStore::new(
+    mount_path,
+  ))))
 }
 
-fn init_ram_fs() -> impl FsClient + Clone + Send + 'static {
+fn init_ram_fs() -> Fs {
   log::info!("use ram fs");
-  Arc::new(futures::lock::Mutex::new(fs::fs_ram::FsRamStore::default()))
+  FsRamStore::default().boxed()
 }
 
 #[cfg(target_arch = "wasm32")]
-fn init_fs(params: &HashMap<String, String>) -> fs::Fs {
-  let fs_cl_1 = try_init_fs_http(params).map(|c| c.boxed());
-  //let fs_cl_2 = try_init_fs_native(params).map(|c| c.boxed());
-  fs_cl_1.unwrap_or_else(|| init_ram_fs().boxed())
+fn init_fs(params: &HashMap<String, String>) -> Fs {
+  let fs_cl_1 = try_init_fs_http(params);
+  fs_cl_1.unwrap_or_else(|| init_ram_fs())
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn init_fs(
-  params: &HashMap<String, String>,
-) -> Arc<futures::lock::Mutex<dyn fs::FsClientDyn + Send>> {
-  let fs_cl_1 = try_init_fs_http(params).map(|c| c.boxed());
-  let fs_cl_2 = try_init_fs_native(params).map(|c| c.boxed());
+fn init_fs(params: &HashMap<String, String>) -> Fs {
+  let fs_cl_1 = try_init_fs_http(params);
+  let fs_cl_2 = try_init_fs_native(params);
   fs_cl_1
     .or_else(move || fs_cl_2)
-    .unwrap_or_else(|| init_ram_fs().boxed())
+    .unwrap_or_else(|| init_ram_fs())
 }
 
 impl eframe::App for MyApp<GridObjects> {

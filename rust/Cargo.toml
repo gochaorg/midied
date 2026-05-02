@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["midi-model", "base-ui", "native-app-ui", "wasm-app-ui", "player",
+members = ["midi-model", "base-ui", "native-app-ui", "wasm-app-ui", "player", "fs", "fs-client",
   #"native_ui",
   # "wasm-ui"
 ]
@@ -45,3 +45,6 @@ futures = "0.3.32"
 
 fastrand = "2.4.1"
 derive_more = { version = "2.1.1", features = ["full"] }
+async-trait = "0.1.89"
+
+rhai = "1.24.0"

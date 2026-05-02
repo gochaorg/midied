@@ -1079,11 +1079,11 @@ public class StaticFiles {
             .bytesResponse()
             .jettyRequest()
             .inputBodyStream()
-//            .header("fs-op-overwrite", HeaderValue.boolValue.defaultValue(true))
-            //.header("content-range", ContentRange.headerSegmentOptional() )
+            .header("fs-op-overwrite", HeaderValue.boolValue.defaultValue(true))
+            .header("content-range", ContentRange.headerSegmentOptional() )
             .call(
-//                dataSegmentOpt ->
-//                    overwrite ->
+                dataSegmentOpt ->
+                    overwrite ->
                         dataStream -> req -> () -> {
                 var targetPathOpt = targetPathFrom(req);
                 if( targetPathOpt.isEmpty() ) return canonicalPathIsNull(req.getHttpURI());
@@ -1095,9 +1095,9 @@ public class StaticFiles {
                     targetFileOpt.get().physicalPath,
                     dataStream,
                     conf -> conf
-                        .overwrite(HeaderValue.boolValue.parse(req.getHeaders().get("fs-op-overwrite")).orElse(true))
+                        .overwrite(overwrite)
                         .mkdir(allowMkDir)
-                        .dataSegment(ContentRange.parseSegment(req.getHeaders().get("content-range")))
+                        .dataSegment(dataSegmentOpt)
                 );
             });
     }

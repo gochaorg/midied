@@ -8,7 +8,7 @@ public sealed interface ContentRange {
         HeaderValue<Optional<Segment>> hv = str -> {
             return Optional.of(parseSegment(str));
         };
-        return hv.defaultValue(Optional.<Optional<Segment>>empty());
+        return hv.defaultValue(Optional.of(Optional.empty()));
     }
 
     static HeaderValue<Segment> headerSegment() {

@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 midi-model = { path = "../midi-model" }
+fs = { path = "../fs" }
 
 eframe.workspace = true
 egui.workspace = true
@@ -22,7 +23,7 @@ reqwest.workspace = true
 fastrand.workspace = true
 derive_more.workspace = true
 egui_extras = { workspace = true, features = ["image", "svg"] }
-async-trait = "0.1.89"
+async-trait.workspace = true
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen.workspace = true

@@ -13,6 +13,7 @@ env_logger.workspace = true
 tokio.workspace = true
 
 base_ui = { path="../base-ui" }
+fs = { path = "../fs" }
 
 [profile.release]
 opt-level = 3
